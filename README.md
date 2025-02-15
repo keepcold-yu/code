@@ -1,5 +1,4 @@
-# code
-
-mindspore == 2.4.10\n
-cann == 8.0\n
-device == Ascend
+# 环境信息
+- **MindSpore版本**: `2.4.10`
+- **CANN版本**: `8.0`
+- **设备**: `Ascend`
