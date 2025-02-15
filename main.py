@@ -56,27 +56,22 @@ def split_dataset(data_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
     val_tuberculosis_size = int(num_tuberculosis * val_ratio)
     test_tuberculosis_size = num_tuberculosis - train_tuberculosis_size - val_tuberculosis_size
 
-    # 划分正常图像
     train_normal, val_normal, test_normal = split_files(normal_files, train_normal_size, val_normal_size)
-    # 划分肺结核图像
     train_tuberculosis, val_tuberculosis, test_tuberculosis = split_files(tuberculosis_files, train_tuberculosis_size, val_tuberculosis_size)
 
     def copy_files(files, dst_dir):
         for file in files:
             shutil.copy(file, dst_dir)
 
-    # 复制正常图像
     copy_files(train_normal, os.path.join(train_dir, 'Normal'))
     copy_files(val_normal, os.path.join(val_dir, 'Normal'))
     copy_files(test_normal, os.path.join(test_dir, 'Normal'))
-    # 复制肺结核图像
     copy_files(train_tuberculosis, os.path.join(train_dir, 'Tuberculosis'))
     copy_files(val_tuberculosis, os.path.join(val_dir, 'Tuberculosis'))
     copy_files(test_tuberculosis, os.path.join(test_dir, 'Tuberculosis'))
 
 
 def preprocess_dataset(dataset_dir, batch_size=32, image_size=(512, 512), train=True):
-    # 加载数据集
     dataset = ImageFolderDataset(dataset_dir, num_parallel_workers=4)
     mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
     std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
@@ -110,7 +105,7 @@ def load_datasets(batch_size=32):
 
 
 def create_model():
-    model = MobileNetV3(num_classes=2)  # 二分类任务：正常 vs 肺结核
+    model = MobileNetV3(num_classes=2) 
     loss = nn.SoftmaxCrossEntropyWithLogits(sparse=True)
     opt = nn.Momentum(model.trainable_params(), learning_rate=0.01, momentum=0.9)
     return model, loss, opt
@@ -121,22 +116,18 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
     # 划分数据集
     split_dataset('dataset')
     train_dataset, val_dataset, test_dataset = load_datasets(batch_size)
-    # 创建模型和优化器
     model = MobileNetV3(num_classes=2)
     loss_fn = nn.SoftmaxCrossEntropyWithLogits(sparse=True, reduction='mean')
     opt = nn.Momentum(model.trainable_params(), learning_rate=lr, momentum=0.9)
-    # 封装训练网络
     net_with_loss = nn.WithLossCell(model, loss_fn)
     train_net = nn.TrainOneStepCell(net_with_loss, opt)
-    # 记录训练指标
     train_loss_history = []
     val_accuracy_history = []
     best_val_accuracy = 0.0
     best_model_path = None
     # 训练循环
     for epoch in range(epochs):
-        # 训练阶段
-        model.set_train(True)  # 关键修复：使用 set_train(True)
+        model.set_train(True) 
         epoch_loss = 0.0
         progress_bar = tqdm(train_dataset.create_dict_iterator(), 
                             desc=f"Epoch {epoch+1}/{epochs}", 
@@ -151,8 +142,8 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
         avg_epoch_loss = epoch_loss / len(train_dataset)
         train_loss_history.append(avg_epoch_loss)
 
-        # 验证阶段
-        model.set_train(False)  # 关键修复：使用 set_train(False)
+        # 验证
+        model.set_train(False) 
         acc_metric = Accuracy()
         val_progress = tqdm(val_dataset.create_dict_iterator(), 
                             desc="Validating", 
@@ -179,7 +170,6 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
               f"Train Loss: {avg_epoch_loss:.4f}, "
               f"Val Acc: {val_accuracy:.4f}")
 
-    # 训练结束后绘制完整的 loss 和 accuracy 图
     plt.figure(figsize=(12, 5))
     
     # 绘制训练 loss 曲线
@@ -207,16 +197,13 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
 
 
 def generate_evaluation_plots(model_path, test_dataset, save_dir):
-    # 加载模型
     model = MobileNetV3(num_classes=2)
     ms.load_checkpoint(model_path, model, strict_load=True)
-    model.set_train(False)  # 关键修复：使用 set_train(False)
+    model.set_train(False) 
     
-    # 检查测试数据
     if test_dataset.get_dataset_size() == 0:
         raise ValueError("测试数据集为空！")
     
-    # 收集预测结果
     true_labels, pred_labels, probs = [], [], []
     for batch in test_dataset.create_dict_iterator():
         images = batch["image"]
@@ -284,7 +271,7 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
 if __name__ == "__main__":
     train_and_evaluate(
         epochs=10, 
-        lr=0.001,  # 适当增大学习率
+        lr=0.001,  
         batch_size=32,
         save_dir="graphs"
     )
