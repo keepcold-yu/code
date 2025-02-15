@@ -7,9 +7,9 @@
 # 测试样例
 - **单张图片预测**
 ```python
-python predict.py --model xxx.ckpt --input 1.png --soc 310
+python predict.py --model best_model.ckpt --input 1.png --soc 310
 ```
 - **批量预测**
 ```python
-python predict.py --model xxx.ckpt --input test/ --batch_size 16 --soc 310
+python predict.py --model best_model.ckpt --input test/ --batch_size 16 --soc 310
 ```
