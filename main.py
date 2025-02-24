@@ -14,6 +14,8 @@ import numpy as np
 from tqdm import tqdm 
 import seaborn as sns
 
+ms.set_context(device_target="Ascend", mode=ms.GRAPH_MODE, jit_config={"jit_level":"O2"}, ascend_config={"precision_mode":"allow_mix_precision"})
+
 def split_dataset(data_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
     normal_dir = os.path.join(data_dir, 'Normal')
     tuberculosis_dir = os.path.join(data_dir, 'Tuberculosis')
@@ -32,11 +34,9 @@ def split_dataset(data_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
     os.makedirs(os.path.join(test_dir, 'Normal'), exist_ok=True)
     os.makedirs(os.path.join(test_dir, 'Tuberculosis'), exist_ok=True)
 
-    # 获取文件列表
     normal_files = [os.path.join(normal_dir, f) for f in os.listdir(normal_dir)]
     tuberculosis_files = [os.path.join(tuberculosis_dir, f) for f in os.listdir(tuberculosis_dir)]
 
-    # 打乱文件列表
     random.shuffle(normal_files)
     random.shuffle(tuberculosis_files)
 
@@ -46,7 +46,6 @@ def split_dataset(data_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
         test_files = files[train_size + val_size:]
         return train_files, val_files, test_files
 
-    # 计算划分数量
     num_normal = len(normal_files)
     num_tuberculosis = len(tuberculosis_files)
     train_normal_size = int(num_normal * train_ratio)
@@ -66,6 +65,7 @@ def split_dataset(data_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
     copy_files(train_normal, os.path.join(train_dir, 'Normal'))
     copy_files(val_normal, os.path.join(val_dir, 'Normal'))
     copy_files(test_normal, os.path.join(test_dir, 'Normal'))
+    
     copy_files(train_tuberculosis, os.path.join(train_dir, 'Tuberculosis'))
     copy_files(val_tuberculosis, os.path.join(val_dir, 'Tuberculosis'))
     copy_files(test_tuberculosis, os.path.join(test_dir, 'Tuberculosis'))
@@ -105,7 +105,7 @@ def load_datasets(batch_size=32):
 
 
 def create_model():
-    model = MobileNetV3(num_classes=2) 
+    model = MobileNetV3(num_classes=2)  # 二分类
     loss = nn.SoftmaxCrossEntropyWithLogits(sparse=True)
     opt = nn.Momentum(model.trainable_params(), learning_rate=0.01, momentum=0.9)
     return model, loss, opt
@@ -127,7 +127,8 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
     best_model_path = None
     # 训练循环
     for epoch in range(epochs):
-        model.set_train(True) 
+        # 训练
+        model.set_train(True)  
         epoch_loss = 0.0
         progress_bar = tqdm(train_dataset.create_dict_iterator(), 
                             desc=f"Epoch {epoch+1}/{epochs}", 
@@ -143,7 +144,7 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
         train_loss_history.append(avg_epoch_loss)
 
         # 验证
-        model.set_train(False) 
+        model.set_train(False)  
         acc_metric = Accuracy()
         val_progress = tqdm(val_dataset.create_dict_iterator(), 
                             desc="Validating", 
@@ -172,7 +173,7 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
 
     plt.figure(figsize=(12, 5))
     
-    # 绘制训练 loss 曲线
+    # loss 曲线
     plt.subplot(1, 2, 1)
     plt.plot(range(1, epochs + 1), train_loss_history, label='Train Loss', color='blue')
     plt.title("Training Loss")
@@ -180,7 +181,7 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
     plt.ylabel("Loss")
     plt.legend()
 
-    # 绘制验证 accuracy 曲线
+    # accuracy 曲线
     plt.subplot(1, 2, 2)
     plt.plot(range(1, epochs + 1), val_accuracy_history, label='Validation Accuracy', color='orange')
     plt.title("Validation Accuracy")
@@ -188,18 +189,18 @@ def train_and_evaluate(epochs=10, lr=0.001, batch_size=32, save_dir="graphs"):
     plt.ylabel("Accuracy")
     plt.legend()
 
-    # 保存最终的训练结果图
+    # 保存训练结果图
     plt.savefig(os.path.join(save_dir, 'final_training_progress.png'), bbox_inches='tight')
     plt.close()
 
-    # 最终评估
     generate_evaluation_plots(best_model_path, test_dataset, save_dir)
 
 
 def generate_evaluation_plots(model_path, test_dataset, save_dir):
+    # 加载模型
     model = MobileNetV3(num_classes=2)
     ms.load_checkpoint(model_path, model, strict_load=True)
-    model.set_train(False) 
+    model.set_train(False)  # 关键修复：使用 set_train(False)
     
     if test_dataset.get_dataset_size() == 0:
         raise ValueError("测试数据集为空！")
@@ -215,7 +216,7 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
         pred_labels.extend(preds.asnumpy())
         probs.extend(prob)
     
-    # 1. 混淆矩阵
+    # 混淆矩阵
     cm = confusion_matrix(true_labels, pred_labels)
     plt.figure(figsize=(6, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
@@ -227,7 +228,7 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
     plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), bbox_inches='tight')
     plt.close()
     
-    # 2. ROC曲线
+    # ROC曲线
     fpr, tpr, _ = roc_curve(true_labels, probs)
     roc_auc = auc(fpr, tpr)
     plt.figure()
@@ -242,7 +243,7 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
     plt.savefig(os.path.join(save_dir, 'roc_curve.png'), bbox_inches='tight')
     plt.close()
     
-    # 3. PR曲线
+    # PR曲线
     precision, recall, _ = precision_recall_curve(true_labels, probs)
     plt.figure()
     plt.plot(recall, precision, color='blue', lw=2, label='PR Curve')
@@ -255,7 +256,7 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
     plt.savefig(os.path.join(save_dir, 'pr_curve.png'), bbox_inches='tight')
     plt.close()
     
-    # 4. 分类报告热力图
+    # 热力图
     report = classification_report(true_labels, pred_labels, target_names=['Normal', 'Tuberculosis'], output_dict=True)
     plt.figure(figsize=(8, 4))
     sns.heatmap([[report['Normal']['precision'], report['Normal']['recall']],
@@ -271,8 +272,8 @@ def generate_evaluation_plots(model_path, test_dataset, save_dir):
 if __name__ == "__main__":
     train_and_evaluate(
         epochs=10, 
-        lr=0.001,  
-        batch_size=32,
+        lr=0.001,  # 学习率
+        batch_size=16,
         save_dir="graphs"
     )
     
